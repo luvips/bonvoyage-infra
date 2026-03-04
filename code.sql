@@ -191,3 +191,186 @@ BEGIN
     RETURN v_new_status;
 END;
 $$;
+
+
+-- ============================================================
+--  FUNCTION 3: Eliminar viaje + cascade manual
+--  Solo permite eliminar viajes en status 'draft' o 'cancelled'
+--  Uso: SELECT fn_delete_trip(trip_id, user_id)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_delete_trip(
+    p_trip_id   UUID,
+    p_user_id   UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_status VARCHAR(20);
+BEGIN
+    SELECT status INTO v_status
+    FROM trips
+    WHERE trip_id = p_trip_id AND user_id = p_user_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Viaje no encontrado o acceso denegado';
+    END IF;
+
+    IF v_status NOT IN ('draft', 'cancelled') THEN
+        RAISE EXCEPTION 'Solo se pueden eliminar viajes en estado draft o cancelled';
+    END IF;
+
+    UPDATE email_notifications
+    SET status = 'cancelled'
+    WHERE related_entity_id   = p_trip_id
+      AND related_entity_type = 'trip'
+      AND status              = 'pending';
+
+    -- Eliminar ítems de todos los días
+    DELETE FROM itinerary_items
+    WHERE day_id IN (
+        SELECT day_id FROM itinerary_days WHERE trip_id = p_trip_id
+    );
+
+    -- Eliminar días
+    DELETE FROM itinerary_days WHERE trip_id = p_trip_id;
+
+    -- Eliminar el viaje
+    DELETE FROM trips WHERE trip_id = p_trip_id;
+
+    RETURN TRUE;
+END;
+$$;
+
+
+-- ============================================================
+--  FUNCTION 4: Agregar ítem + auto-asignar vuelo al día por fecha
+--  Para vuelos, ignora el day_id recibido y busca el día cuya
+--  day_date coincida con la fecha del vuelo
+--  Uso: SELECT fn_add_itinerary_item(...)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_add_itinerary_item(
+    p_trip_id               UUID,
+    p_day_id                UUID,           -- ignorado para vuelos, se calcula automático
+    p_item_type             VARCHAR(30),
+    p_external_reference_id VARCHAR(255),
+    p_item_data             JSONB,
+    p_start_time            TIME            DEFAULT NULL,
+    p_end_time              TIME            DEFAULT NULL,
+    p_estimated_cost        DECIMAL(10,2)   DEFAULT NULL,
+    p_notes                 TEXT            DEFAULT NULL,
+    p_flight_datetime       TIMESTAMP       DEFAULT NULL,
+    p_hotel_checkin_date    DATE            DEFAULT NULL,
+    p_hotel_checkout_date   DATE            DEFAULT NULL
+)
+RETURNS UUID                                -- retorna el item_id creado
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_item_id       UUID;
+    v_target_day_id UUID;
+    v_next_position SMALLINT;
+BEGIN
+    -- Para vuelos: buscar el día cuya day_date coincida con la fecha del vuelo
+    IF p_item_type IN ('flight_outbound', 'flight_return') THEN
+        IF p_flight_datetime IS NULL THEN
+            RAISE EXCEPTION 'flight_datetime is required for flight items';
+        END IF;
+
+        SELECT day_id INTO v_target_day_id
+        FROM itinerary_days
+        WHERE trip_id  = p_trip_id
+          AND day_date = p_flight_datetime::DATE;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'No itinerary day found for flight date %',
+                p_flight_datetime::DATE;
+        END IF;
+    ELSE
+        -- Para el resto de ítems usar el day_id recibido
+        v_target_day_id := p_day_id;
+    END IF;
+
+    -- Validar que el day_id pertenece al trip
+    IF NOT EXISTS (
+        SELECT 1 FROM itinerary_days
+        WHERE day_id = v_target_day_id AND trip_id = p_trip_id
+    ) THEN
+        RAISE EXCEPTION 'day_id does not belong to this trip';
+    END IF;
+
+    -- Calcular siguiente posición disponible en ese día
+    SELECT COALESCE(MAX(order_position), 0) + 1
+    INTO v_next_position
+    FROM itinerary_items
+    WHERE day_id = v_target_day_id;
+
+    -- Insertar el ítem
+    INSERT INTO itinerary_items (
+        day_id,
+        item_type,
+        external_reference_id,
+        item_data,
+        start_time,
+        end_time,
+        order_position,
+        estimated_cost,
+        notes,
+        flight_datetime,
+        hotel_checkin_date,
+        hotel_checkout_date,
+        status
+    )
+    VALUES (
+        v_target_day_id,
+        p_item_type,
+        p_external_reference_id,
+        p_item_data,
+        p_start_time,
+        p_end_time,
+        v_next_position,
+        p_estimated_cost,
+        p_notes,
+        p_flight_datetime,
+        p_hotel_checkin_date,
+        p_hotel_checkout_date,
+        'planned'
+    )
+    RETURNING item_id INTO v_item_id;
+
+    RETURN v_item_id;
+END;
+$$;
+
+
+-- ============================================================
+--  FUNCTION 5 (Bonus): Recalcular order_position de un día
+--  Se llama internamente después de eliminar un ítem
+--  Uso: SELECT fn_reorder_day_items(day_id)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_reorder_day_items(
+    p_day_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Reasigna posiciones consecutivas ordenadas por la posición actual
+    WITH ranked AS (
+        SELECT item_id,
+               ROW_NUMBER() OVER (ORDER BY order_position, created_at) AS new_position
+        FROM itinerary_items
+        WHERE day_id = p_day_id
+          AND status <> 'cancelled'
+    )
+    UPDATE itinerary_items ii
+    SET order_position = r.new_position
+    FROM ranked r
+    WHERE ii.item_id = r.item_id;
+END;
+$$;
+
+
