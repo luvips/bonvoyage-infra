@@ -24,6 +24,7 @@ jobs:
       - name: Run all SQL files in order
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
         run: |
           for file in $(ls init/*.sql | sort); do
             echo "Executing $file..."

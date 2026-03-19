@@ -14,6 +14,7 @@ CREATE INDEX idx_identities_provider
     ON user_identities(provider, provider_id)
     WHERE provider_id IS NOT NULL;
 
+
 -- ============================================================
 --  WISHLIST
 -- ============================================================
