@@ -1,28 +1,18 @@
--- ============================================================
---  BON VOYAGE — Schema
---  Tablas únicamente
---  PostgreSQL 16
--- ============================================================
-
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- ============================================================
---  MÓDULO DE USUARIOS
--- ============================================================
-
-CREATE TABLE avatars (
+CREATE TABLE IF NOT EXISTS avatars (
     avatar_id   SERIAL       PRIMARY KEY,
     name        VARCHAR(50)  NOT NULL UNIQUE,
     image_url   TEXT         NOT NULL,
     is_active   BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     user_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     email       VARCHAR(255) NOT NULL UNIQUE,
     first_name  VARCHAR(255) NOT NULL,
     last_name   VARCHAR(255) NOT NULL,
-    avatar_id   INTEGER      REFERENCES avatars(avatar_id) ON DELETE SET NULL,
+    avatar_id   INTEGER      REFERENCES avatars(avatar_id) ON DELETE SET NULL ON UPDATE CASCADE,
     role        VARCHAR(20)  NOT NULL DEFAULT 'USER'
                     CHECK (role IN ('USER', 'ADMIN')),
     status      VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE'
@@ -32,9 +22,9 @@ CREATE TABLE users (
     deleted_at  TIMESTAMP    DEFAULT NULL
 );
 
-CREATE TABLE user_identities (
+CREATE TABLE IF NOT EXISTS user_identities (
     identity_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id         UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     provider        VARCHAR(50)  NOT NULL CHECK (provider IN ('LOCAL', 'GOOGLE', 'APPLE')),
     provider_id     VARCHAR(255),
     password_hash   VARCHAR(255),
@@ -49,9 +39,9 @@ CREATE TABLE user_identities (
         CHECK (provider = 'LOCAL' OR provider_id IS NOT NULL)
 );
 
-CREATE TABLE user_preferences (
+CREATE TABLE IF NOT EXISTS user_preferences (
     preference_id        UUID  PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id              UUID  NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id              UUID  NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     budget_range         JSONB,
     dietary_restrictions JSONB,
     interests            JSONB,
@@ -63,9 +53,9 @@ CREATE TABLE user_preferences (
     UNIQUE (user_id)
 );
 
-CREATE TABLE user_travel_history (
+CREATE TABLE IF NOT EXISTS user_travel_history (
     history_id  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id     UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     trip_id     UUID,
     destination VARCHAR(255) NOT NULL,
     country     VARCHAR(100) NOT NULL,
@@ -75,13 +65,9 @@ CREATE TABLE user_travel_history (
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
---  MÓDULO DE WISHLIST
--- ============================================================
-
-CREATE TABLE wishlist (
+CREATE TABLE IF NOT EXISTS wishlist (
     wishlist_id UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id     UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     country     VARCHAR(100) NOT NULL,
     city        VARCHAR(150) NOT NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
@@ -89,11 +75,7 @@ CREATE TABLE wishlist (
     UNIQUE (user_id, country, city)
 );
 
--- ============================================================
---  MÓDULO DE DESTINOS
--- ============================================================
-
-CREATE TABLE destinations (
+CREATE TABLE IF NOT EXISTS destinations (
     destination_id  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(255)  NOT NULL,
     country         VARCHAR(100)  NOT NULL,
@@ -108,9 +90,9 @@ CREATE TABLE destinations (
     updated_at      TIMESTAMP     NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE flight_price_trends (
+CREATE TABLE IF NOT EXISTS flight_price_trends (
     trend_id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    destination_id      UUID          NOT NULL REFERENCES destinations(destination_id) ON DELETE CASCADE,
+    destination_id      UUID          NOT NULL REFERENCES destinations(destination_id) ON DELETE CASCADE ON UPDATE CASCADE,
     origin_airport_code VARCHAR(10)   NOT NULL,
     month               SMALLINT      NOT NULL CHECK (month BETWEEN 1 AND 12),
     avg_price           DECIMAL(10,2),
@@ -119,11 +101,7 @@ CREATE TABLE flight_price_trends (
     last_updated        TIMESTAMP     NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
---  MÓDULO DE REFERENCIAS EXTERNAS
--- ============================================================
-
-CREATE TABLE place_references (
+CREATE TABLE IF NOT EXISTS place_references (
     reference_id    UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     external_id     VARCHAR(255)  NOT NULL,
     category        VARCHAR(50)   NOT NULL
@@ -140,7 +118,7 @@ CREATE TABLE place_references (
     UNIQUE (external_id, category)
 );
 
-CREATE TABLE flight_references (
+CREATE TABLE IF NOT EXISTS flight_references (
     reference_id        UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     external_flight_id  VARCHAR(255)  NOT NULL UNIQUE,
     airline_code        VARCHAR(10),
@@ -156,33 +134,30 @@ CREATE TABLE flight_references (
     cache_ttl_hours     SMALLINT      DEFAULT 24
 );
 
--- ============================================================
---  MÓDULO DE ITINERARIOS
--- ============================================================
-
-CREATE TABLE trips (
-    trip_id         UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID          NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    destination_id  UUID          REFERENCES destinations(destination_id),
-    trip_name       VARCHAR(255)  NOT NULL,
-    start_date      DATE          NOT NULL,
-    end_date        DATE          NOT NULL,
-    status          VARCHAR(20)   NOT NULL DEFAULT 'DRAFT'
-                        CHECK (status IN ('DRAFT', 'CONFIRMED', 'COMPLETED', 'CANCELLED')),
-    total_budget    DECIMAL(12,2),
-    currency        VARCHAR(10)   DEFAULT 'USD',
-    is_favorite     BOOLEAN       NOT NULL DEFAULT FALSE,
-    confirmed_at    TIMESTAMP,
-    created_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
+CREATE TABLE IF NOT EXISTS trips (
+    trip_id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id              UUID          NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    destination_id       UUID          REFERENCES destinations(destination_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    trip_name            VARCHAR(255)  NOT NULL,
+    start_date           DATE          NOT NULL,
+    end_date             DATE          NOT NULL,
+    status               VARCHAR(20)   NOT NULL DEFAULT 'DRAFT'
+                             CHECK (status IN ('DRAFT', 'CONFIRMED', 'COMPLETED', 'CANCELLED')),
+    total_budget         DECIMAL(12,2),
+    currency             VARCHAR(10)   DEFAULT 'USD',
+    is_favorite          BOOLEAN       NOT NULL DEFAULT FALSE,
+    planning_time_seconds INTEGER,
+    confirmed_at         TIMESTAMP,
+    created_at           TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMP     NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_dates    CHECK (end_date >= start_date),
     CONSTRAINT chk_max_days CHECK ((end_date - start_date) <= 30)
 );
 
-CREATE TABLE itinerary_days (
+CREATE TABLE IF NOT EXISTS itinerary_days (
     day_id      UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
-    trip_id     UUID      NOT NULL REFERENCES trips(trip_id) ON DELETE CASCADE,
+    trip_id     UUID      NOT NULL REFERENCES trips(trip_id) ON DELETE CASCADE ON UPDATE CASCADE,
     day_date    DATE      NOT NULL,
     day_number  SMALLINT  NOT NULL,
     notes       TEXT,
@@ -192,12 +167,12 @@ CREATE TABLE itinerary_days (
     UNIQUE (trip_id, day_date)
 );
 
-CREATE TABLE itinerary_items (
+CREATE TABLE IF NOT EXISTS itinerary_items (
     item_id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    day_id              UUID        NOT NULL REFERENCES itinerary_days(day_id) ON DELETE CASCADE,
+    day_id              UUID        NOT NULL REFERENCES itinerary_days(day_id) ON DELETE CASCADE ON UPDATE CASCADE,
     item_type           VARCHAR(20) NOT NULL CHECK (item_type IN ('PLACE', 'FLIGHT')),
-    place_reference_id  UUID        REFERENCES place_references(reference_id),
-    flight_reference_id UUID        REFERENCES flight_references(reference_id),
+    place_reference_id  UUID        REFERENCES place_references(reference_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    flight_reference_id UUID        REFERENCES flight_references(reference_id) ON DELETE SET NULL ON UPDATE CASCADE,
     order_position      SMALLINT    NOT NULL DEFAULT 1,
     start_time          TIME,
     end_time            TIME,
@@ -214,13 +189,9 @@ CREATE TABLE itinerary_items (
         CHECK (item_type <> 'FLIGHT' OR flight_reference_id IS NOT NULL)
 );
 
--- ============================================================
---  MÓDULO DE NOTIFICACIONES
--- ============================================================
-
-CREATE TABLE email_notifications (
+CREATE TABLE IF NOT EXISTS email_notifications (
     notification_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id             UUID        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     notification_type   VARCHAR(40) NOT NULL
                             CHECK (notification_type IN (
                                 'WELCOME', 'PASSWORD_RESET',

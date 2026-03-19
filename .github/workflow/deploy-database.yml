@@ -1,0 +1,37 @@
+name: Deploy Database to Supabase
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'init/**.sql'
+
+jobs:
+  deploy:
+    name: Run SQL migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+
+      - name: Run all SQL files in order
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          for file in $(ls init/*.sql | sort); do
+            echo "Executing $file..."
+            psql \
+              --host=${{ secrets.SUPABASE_DB_HOST }} \
+              --port=5432 \
+              --username=${{ secrets.SUPABASE_DB_USER }} \
+              --dbname=${{ secrets.SUPABASE_DB_NAME }} \
+              --file="$file" \
+              --set ON_ERROR_STOP=1
+          done
