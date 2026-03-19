@@ -1,214 +1,180 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE IF NOT EXISTS avatars (
-    avatar_id   SERIAL       PRIMARY KEY,
-    name        VARCHAR(50)  NOT NULL UNIQUE,
-    image_url   TEXT         NOT NULL,
-    is_active   BOOLEAN      NOT NULL DEFAULT TRUE
+-- 1. Tablas independientes (sin llaves foráneas)
+CREATE TABLE avatars (
+  avatar_id SERIAL PRIMARY KEY,
+  name VARCHAR NOT NULL UNIQUE,
+  image_url TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true
 );
 
-CREATE TABLE IF NOT EXISTS users (
-    user_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    email       VARCHAR(255) NOT NULL UNIQUE,
-    first_name  VARCHAR(255) NOT NULL,
-    last_name   VARCHAR(255) NOT NULL,
-    avatar_id   INTEGER      REFERENCES avatars(avatar_id) ON DELETE SET NULL ON UPDATE CASCADE,
-    role        VARCHAR(20)  NOT NULL DEFAULT 'USER'
-                    CHECK (role IN ('USER', 'ADMIN')),
-    status      VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE'
-                    CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED')),
-    created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
-    deleted_at  TIMESTAMP    DEFAULT NULL
+CREATE TABLE destinations (
+  destination_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR NOT NULL,
+  country VARCHAR NOT NULL,
+  city VARCHAR NOT NULL,
+  latitude NUMERIC NOT NULL,
+  longitude NUMERIC NOT NULL,
+  timezone VARCHAR,
+  currency_code VARCHAR,
+  popular_months JSONB,
+  image_url TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS user_identities (
-    identity_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    provider        VARCHAR(50)  NOT NULL CHECK (provider IN ('LOCAL', 'GOOGLE', 'APPLE')),
-    provider_id     VARCHAR(255),
-    password_hash   VARCHAR(255),
-    updated_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
-
-    UNIQUE (user_id, provider),
-    UNIQUE (provider, provider_id),
-
-    CONSTRAINT chk_local_password
-        CHECK (provider <> 'LOCAL' OR password_hash IS NOT NULL),
-    CONSTRAINT chk_external_provider_id
-        CHECK (provider = 'LOCAL' OR provider_id IS NOT NULL)
+CREATE TABLE place_references (
+  reference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  external_id VARCHAR NOT NULL,
+  category VARCHAR NOT NULL CHECK (category IN ('HOTEL', 'RESTAURANT', 'POI', 'SERVICE')),
+  name VARCHAR NOT NULL,
+  address TEXT,
+  latitude NUMERIC,
+  longitude NUMERIC,
+  rating NUMERIC,
+  extended_data JSONB,
+  api_source VARCHAR,
+  cached_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-
-
-CREATE TABLE IF NOT EXISTS user_preferences (
-    preference_id        UUID  PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id              UUID  NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    budget_range         JSONB,
-    dietary_restrictions JSONB,
-    interests            JSONB,
-    preferred_currency   VARCHAR(10) DEFAULT 'USD',
-    preferred_language   VARCHAR(5)  DEFAULT 'es',
-    email_preferences    JSONB,
-    updated_at           TIMESTAMP   NOT NULL DEFAULT NOW(),
-
-    UNIQUE (user_id)
+CREATE TABLE flight_references (
+  reference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  external_flight_id VARCHAR NOT NULL UNIQUE,
+  airline_code VARCHAR,
+  flight_number VARCHAR,
+  origin_airport VARCHAR NOT NULL,
+  destination_airport VARCHAR NOT NULL,
+  departure_time TIMESTAMP NOT NULL,
+  arrival_time TIMESTAMP NOT NULL,
+  price NUMERIC,
+  currency VARCHAR DEFAULT 'USD',
+  api_source VARCHAR DEFAULT 'amadeus',
+  cached_at TIMESTAMP NOT NULL DEFAULT now(),
+  cache_ttl_hours SMALLINT DEFAULT 24
 );
 
-CREATE TABLE IF NOT EXISTS user_travel_history (
-    history_id  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    trip_id     UUID,
-    destination VARCHAR(255) NOT NULL,
-    country     VARCHAR(100) NOT NULL,
-    travel_date DATE,
-    rating      SMALLINT     CHECK (rating BETWEEN 1 AND 5),
-    tags        JSONB,
-    created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+-- 2. Tablas base (dependen de las independientes)
+CREATE TABLE users (
+  user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR NOT NULL UNIQUE,
+  first_name VARCHAR NOT NULL,
+  last_name VARCHAR NOT NULL,
+  avatar_id INT REFERENCES avatars(avatar_id),
+  role VARCHAR NOT NULL DEFAULT 'USER' CHECK (role IN ('USER', 'ADMIN')),
+  status VARCHAR NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED')),
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS wishlist (
-    wishlist_id UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID         NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    country     VARCHAR(100) NOT NULL,
-    city        VARCHAR(150) NOT NULL,
-    created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
-
-    UNIQUE (user_id, country, city)
+CREATE TABLE trips (
+  trip_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id),
+  destination_id UUID REFERENCES destinations(destination_id),
+  trip_name VARCHAR NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status VARCHAR NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'CONFIRMED', 'COMPLETED', 'CANCELLED')),
+  total_budget NUMERIC,
+  currency VARCHAR DEFAULT 'USD',
+  is_favorite BOOLEAN NOT NULL DEFAULT false,
+  confirmed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  planning_time_seconds INT DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS destinations (
-    destination_id  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            VARCHAR(255)  NOT NULL,
-    country         VARCHAR(100)  NOT NULL,
-    city            VARCHAR(150)  NOT NULL,
-    latitude        DECIMAL(10,7) NOT NULL,
-    longitude       DECIMAL(10,7) NOT NULL,
-    timezone        VARCHAR(60),
-    currency_code   VARCHAR(10),
-    popular_months  JSONB,
-    image_url       TEXT,
-    created_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMP     NOT NULL DEFAULT NOW()
+-- 3. Tablas dependientes de usuarios o viajes
+CREATE TABLE user_identities (
+  identity_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id),
+  provider VARCHAR NOT NULL CHECK (provider IN ('LOCAL', 'GOOGLE', 'APPLE')),
+  provider_id VARCHAR,
+  password_hash VARCHAR,
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS flight_price_trends (
-    trend_id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    destination_id      UUID          NOT NULL REFERENCES destinations(destination_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    origin_airport_code VARCHAR(10)   NOT NULL,
-    month               SMALLINT      NOT NULL CHECK (month BETWEEN 1 AND 12),
-    avg_price           DECIMAL(10,2),
-    min_price           DECIMAL(10,2),
-    currency            VARCHAR(10)   DEFAULT 'USD',
-    last_updated        TIMESTAMP     NOT NULL DEFAULT NOW()
+CREATE TABLE user_preferences (
+  preference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL UNIQUE REFERENCES users(user_id),
+  budget_range JSONB,
+  dietary_restrictions JSONB,
+  interests JSONB,
+  preferred_currency VARCHAR DEFAULT 'USD',
+  preferred_language VARCHAR DEFAULT 'es',
+  email_preferences JSONB,
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS place_references (
-    reference_id    UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    external_id     VARCHAR(255)  NOT NULL,
-    category        VARCHAR(50)   NOT NULL
-                        CHECK (category IN ('HOTEL', 'RESTAURANT', 'POI', 'SERVICE')),
-    name            VARCHAR(255)  NOT NULL,
-    address         TEXT,
-    latitude        DECIMAL(10,7),
-    longitude       DECIMAL(10,7),
-    rating          DECIMAL(3,2),
-    extended_data   JSONB,
-    api_source      VARCHAR(50),
-    cached_at       TIMESTAMP     NOT NULL DEFAULT NOW(),
-
-    UNIQUE (external_id, category)
+CREATE TABLE user_travel_history (
+  history_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id),
+  trip_id UUID,
+  destination VARCHAR NOT NULL,
+  country VARCHAR NOT NULL,
+  travel_date DATE,
+  rating SMALLINT CHECK (rating >= 1 AND rating <= 5),
+  tags JSONB,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS flight_references (
-    reference_id        UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    external_flight_id  VARCHAR(255)  NOT NULL UNIQUE,
-    airline_code        VARCHAR(10),
-    flight_number       VARCHAR(20),
-    origin_airport      VARCHAR(10)   NOT NULL,
-    destination_airport VARCHAR(10)   NOT NULL,
-    departure_time      TIMESTAMP     NOT NULL,
-    arrival_time        TIMESTAMP     NOT NULL,
-    price               DECIMAL(10,2),
-    currency            VARCHAR(10)   DEFAULT 'USD',
-    api_source          VARCHAR(50)   DEFAULT 'amadeus',
-    cached_at           TIMESTAMP     NOT NULL DEFAULT NOW(),
-    cache_ttl_hours     SMALLINT      DEFAULT 24
+CREATE TABLE wishlist (
+  wishlist_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id),
+  country VARCHAR NOT NULL,
+  city VARCHAR NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS trips (
-    trip_id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id              UUID          NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    destination_id       UUID          REFERENCES destinations(destination_id) ON DELETE SET NULL ON UPDATE CASCADE,
-    trip_name            VARCHAR(255)  NOT NULL,
-    start_date           DATE          NOT NULL,
-    end_date             DATE          NOT NULL,
-    status               VARCHAR(20)   NOT NULL DEFAULT 'DRAFT'
-                             CHECK (status IN ('DRAFT', 'CONFIRMED', 'COMPLETED', 'CANCELLED')),
-    total_budget         DECIMAL(12,2),
-    currency             VARCHAR(10)   DEFAULT 'USD',
-    is_favorite          BOOLEAN       NOT NULL DEFAULT FALSE,
-    planning_time_seconds INTEGER,
-    confirmed_at         TIMESTAMP,
-    created_at           TIMESTAMP     NOT NULL DEFAULT NOW(),
-    updated_at           TIMESTAMP     NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_dates    CHECK (end_date >= start_date),
-    CONSTRAINT chk_max_days CHECK ((end_date - start_date) <= 30)
+CREATE TABLE email_notifications (
+  notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id),
+  notification_type VARCHAR NOT NULL CHECK (notification_type IN ('WELCOME', 'PASSWORD_RESET', 'DRAFT_REMINDER', 'ARCHIVE_WARNING', 'TRIP_UPCOMING', 'TRIP_CONFIRMED')),
+  subject VARCHAR,
+  template_data JSONB,
+  status VARCHAR NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'CANCELLED')),
+  scheduled_for TIMESTAMP,
+  sent_at TIMESTAMP,
+  retry_count SMALLINT DEFAULT 0,
+  error_message TEXT,
+  related_entity_type VARCHAR,
+  related_entity_id UUID,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS itinerary_days (
-    day_id      UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
-    trip_id     UUID      NOT NULL REFERENCES trips(trip_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    day_date    DATE      NOT NULL,
-    day_number  SMALLINT  NOT NULL,
-    notes       TEXT,
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
-
-    UNIQUE (trip_id, day_number),
-    UNIQUE (trip_id, day_date)
+CREATE TABLE flight_price_trends (
+  trend_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  destination_id UUID NOT NULL REFERENCES destinations(destination_id),
+  origin_airport_code VARCHAR NOT NULL,
+  month SMALLINT NOT NULL CHECK (month >= 1 AND month <= 12),
+  avg_price NUMERIC,
+  min_price NUMERIC,
+  currency VARCHAR DEFAULT 'USD',
+  last_updated TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS itinerary_items (
-    item_id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    day_id              UUID        NOT NULL REFERENCES itinerary_days(day_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    item_type           VARCHAR(20) NOT NULL CHECK (item_type IN ('PLACE', 'FLIGHT')),
-    place_reference_id  UUID        REFERENCES place_references(reference_id) ON DELETE SET NULL ON UPDATE CASCADE,
-    flight_reference_id UUID        REFERENCES flight_references(reference_id) ON DELETE SET NULL ON UPDATE CASCADE,
-    order_position      SMALLINT    NOT NULL DEFAULT 1,
-    start_time          TIME,
-    end_time            TIME,
-    estimated_cost      DECIMAL(10,2),
-    notes               TEXT,
-    status              VARCHAR(20) NOT NULL DEFAULT 'PLANNED'
-                            CHECK (status IN ('PLANNED', 'CONFIRMED', 'CANCELLED')),
-    created_at          TIMESTAMP   NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP   NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT chk_place_ref
-        CHECK (item_type <> 'PLACE'  OR place_reference_id  IS NOT NULL),
-    CONSTRAINT chk_flight_ref
-        CHECK (item_type <> 'FLIGHT' OR flight_reference_id IS NOT NULL)
+-- 4. Tablas del itinerario (dependencias más profundas)
+CREATE TABLE itinerary_days (
+  day_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trip_id UUID NOT NULL REFERENCES trips(trip_id),
+  day_date DATE NOT NULL,
+  day_number SMALLINT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS email_notifications (
-    notification_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID        NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    notification_type   VARCHAR(40) NOT NULL
-                            CHECK (notification_type IN (
-                                'WELCOME', 'PASSWORD_RESET',
-                                'DRAFT_REMINDER', 'ARCHIVE_WARNING',
-                                'TRIP_UPCOMING', 'TRIP_CONFIRMED'
-                            )),
-    subject             VARCHAR(255),
-    template_data       JSONB,
-    status              VARCHAR(20) NOT NULL DEFAULT 'PENDING'
-                            CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'CANCELLED')),
-    scheduled_for       TIMESTAMP,
-    sent_at             TIMESTAMP,
-    retry_count         SMALLINT    DEFAULT 0,
-    error_message       TEXT,
-    related_entity_type VARCHAR(30),
-    related_entity_id   UUID,
-    created_at          TIMESTAMP   NOT NULL DEFAULT NOW()
+CREATE TABLE itinerary_items (
+  item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  day_id UUID NOT NULL REFERENCES itinerary_days(day_id),
+  item_type VARCHAR NOT NULL CHECK (item_type IN ('PLACE', 'FLIGHT')),
+  place_reference_id UUID REFERENCES place_references(reference_id),
+  flight_reference_id UUID REFERENCES flight_references(reference_id),
+  order_position SMALLINT NOT NULL DEFAULT 1,
+  start_time TIME,
+  end_time TIME,
+  estimated_cost NUMERIC,
+  notes TEXT,
+  status VARCHAR NOT NULL DEFAULT 'PLANNED' CHECK (status IN ('PLANNED', 'CONFIRMED', 'CANCELLED')),
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
