@@ -3,7 +3,7 @@ INSERT INTO avatars (name, image_url) VALUES
     ('explorador', 'https://api.dicebear.com/7.x/adventurer/svg?seed=explorador'),
     ('viajero',    'https://api.dicebear.com/7.x/adventurer/svg?seed=viajero'),
     ('mochilero',  'https://api.dicebear.com/7.x/adventurer/svg?seed=mochilero'),
-    ('turista',    'https://api.dicebear.com/7.x/adventurer/svg?seed=turista')
+    ('turista',    'prueba para eliminar')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO destinations (name, country, city, latitude, longitude, timezone, currency_code, popular_months, image_url)
