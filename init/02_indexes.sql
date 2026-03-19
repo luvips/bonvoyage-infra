@@ -1,5 +1,8 @@
-CREATE INDEX IF NOT EXISTS idx_users_email
-    ON users(email);
+-- ============================================================
+--  BON VOYAGE — Indexes
+--  Índices únicamente
+--  PostgreSQL 16
+-- ============================================================
 
 CREATE INDEX IF NOT EXISTS idx_users_active
     ON users(status)
