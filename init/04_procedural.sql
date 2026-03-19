@@ -33,7 +33,8 @@ $$;
   1) Qué hace: Es el vigilante físico en la tabla de items. Apenas cae una inserción o borrado, detona la función de arriba para alterar las fechas maestras del viaje.
   2) Requisito técnico cubierto: Complementa el requerimiento del Trigger de auditoría. Declarado con "AFTER INSERT OR UPDATE OR DELETE" para ser masivo y afectando FOR EACH ROW.
 */
-CREATE OR REPLACE TRIGGER trg_items_update_trip_timestamp
+DROP TRIGGER IF EXISTS trg_items_update_trip_timestamp ON itinerary_items;
+CREATE TRIGGER trg_items_update_trip_timestamp
 AFTER INSERT OR UPDATE OR DELETE ON itinerary_items
 FOR EACH ROW EXECUTE FUNCTION fn_update_trip_timestamp();
 
@@ -58,7 +59,8 @@ $$;
   1) Qué hace: Queda en guardia sobre la tabla users e interrumpe un `UPDATE` justo un segundo antes para forzar nuestro cambio de fecha vía el trigger.
   2) Requisito técnico cubierto: Implementación cruda del requirimiento de Trigger de auditoría utilizando "BEFORE UPDATE ON users FOR EACH ROW" y acatando la sigla trg_.
 */
-CREATE OR REPLACE TRIGGER trg_users_updated_at
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
+CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE FUNCTION fn_update_user_timestamp();
 
@@ -564,6 +566,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE TRIGGER trg_validar_fechas_viaje
+DROP TRIGGER IF EXISTS trg_validar_fechas_viaje ON trips;
+CREATE TRIGGER trg_validar_fechas_viaje
 BEFORE INSERT OR UPDATE ON trips
 FOR EACH ROW EXECUTE FUNCTION fn_trg_validar_fechas_viaje();

@@ -1,14 +1,14 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 1. Tablas independientes (sin llaves foráneas)
-CREATE TABLE avatars (
+CREATE TABLE IF NOT EXISTS avatars (
   avatar_id SERIAL PRIMARY KEY,
   name VARCHAR NOT NULL UNIQUE,
   image_url TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT true
 );
 
-CREATE TABLE destinations (
+CREATE TABLE IF NOT EXISTS destinations (
   destination_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR NOT NULL,
   country VARCHAR NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE destinations (
   updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE place_references (
+CREATE TABLE IF NOT EXISTS place_references (
   reference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   external_id VARCHAR NOT NULL,
   category VARCHAR NOT NULL CHECK (category IN ('HOTEL', 'RESTAURANT', 'POI', 'SERVICE')),
@@ -37,7 +37,7 @@ CREATE TABLE place_references (
   cached_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE flight_references (
+CREATE TABLE IF NOT EXISTS flight_references (
   reference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   external_flight_id VARCHAR NOT NULL UNIQUE,
   airline_code VARCHAR,
@@ -54,7 +54,7 @@ CREATE TABLE flight_references (
 );
 
 -- 2. Tablas base (dependen de las independientes)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR NOT NULL UNIQUE,
   first_name VARCHAR NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE users (
   deleted_at TIMESTAMP
 );
 
-CREATE TABLE trips (
+CREATE TABLE IF NOT EXISTS trips (
   trip_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(user_id),
   destination_id UUID REFERENCES destinations(destination_id),
@@ -84,8 +84,12 @@ CREATE TABLE trips (
   planning_time_seconds INT DEFAULT 0
 );
 
+-- Parche de evolución de esquema: Si la tabla ya existía, IF NOT EXISTS omite el bloque anterior.
+-- Esta línea fuerza la inserción de la nueva columna para evitar errores en las vistas.
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS planning_time_seconds INT DEFAULT 0;
+
 -- 3. Tablas dependientes de usuarios o viajes
-CREATE TABLE user_identities (
+CREATE TABLE IF NOT EXISTS user_identities (
   identity_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(user_id),
   provider VARCHAR NOT NULL CHECK (provider IN ('LOCAL', 'GOOGLE', 'APPLE')),
@@ -94,7 +98,7 @@ CREATE TABLE user_identities (
   updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE user_preferences (
+CREATE TABLE IF NOT EXISTS user_preferences (
   preference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL UNIQUE REFERENCES users(user_id),
   budget_range JSONB,
@@ -106,7 +110,7 @@ CREATE TABLE user_preferences (
   updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE user_travel_history (
+CREATE TABLE IF NOT EXISTS user_travel_history (
   history_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(user_id),
   trip_id UUID,
@@ -118,7 +122,7 @@ CREATE TABLE user_travel_history (
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE wishlist (
+CREATE TABLE IF NOT EXISTS wishlist (
   wishlist_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(user_id),
   country VARCHAR NOT NULL,
@@ -126,7 +130,7 @@ CREATE TABLE wishlist (
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE email_notifications (
+CREATE TABLE IF NOT EXISTS email_notifications (
   notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(user_id),
   notification_type VARCHAR NOT NULL CHECK (notification_type IN ('WELCOME', 'PASSWORD_RESET', 'DRAFT_REMINDER', 'ARCHIVE_WARNING', 'TRIP_UPCOMING', 'TRIP_CONFIRMED')),
@@ -142,7 +146,7 @@ CREATE TABLE email_notifications (
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE flight_price_trends (
+CREATE TABLE IF NOT EXISTS flight_price_trends (
   trend_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   destination_id UUID NOT NULL REFERENCES destinations(destination_id),
   origin_airport_code VARCHAR NOT NULL,
@@ -154,7 +158,7 @@ CREATE TABLE flight_price_trends (
 );
 
 -- 4. Tablas del itinerario (dependencias más profundas)
-CREATE TABLE itinerary_days (
+CREATE TABLE IF NOT EXISTS itinerary_days (
   day_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(trip_id),
   day_date DATE NOT NULL,
@@ -163,7 +167,7 @@ CREATE TABLE itinerary_days (
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE TABLE itinerary_items (
+CREATE TABLE IF NOT EXISTS itinerary_items (
   item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   day_id UUID NOT NULL REFERENCES itinerary_days(day_id),
   item_type VARCHAR NOT NULL CHECK (item_type IN ('PLACE', 'FLIGHT')),
