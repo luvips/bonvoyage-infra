@@ -29,9 +29,9 @@ jobs:
           for file in $(ls init/*.sql | sort); do
             echo "Executing $file..."
             psql \
-              --host=${{ secrets.SUPABASE_DB_HOST }} \
-              --port=5432 \
-              --username=${{ secrets.SUPABASE_DB_USER }} \
+              --host=${{ secrets.SUPABASE_DB_POOLER_HOST }} \
+              --port=6543 \
+              --username=${{ secrets.SUPABASE_DB_POOLER_USER }} \
               --dbname=${{ secrets.SUPABASE_DB_NAME }} \
               --file="$file" \
               --set ON_ERROR_STOP=1

@@ -1,4 +1,5 @@
 
+
 -- ------------------------------------------------------------
 --  VIEW 1: Viajes favoritos del usuario
 --  Uso: SELECT * FROM vw_favorite_trips WHERE user_id = $1
