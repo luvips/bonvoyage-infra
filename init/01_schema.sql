@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS user_identities (
 );
 
 
+
 CREATE TABLE IF NOT EXISTS user_preferences (
     preference_id        UUID  PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id              UUID  NOT NULL REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
