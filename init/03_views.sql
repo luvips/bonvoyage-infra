@@ -15,6 +15,7 @@
   los datos del destino. Calcula de una vez cuántos ítems tiene
   y cuánto dinero lleva acumulado en el itinerario.
 */
+DROP VIEW IF EXISTS vw_favorite_trips CASCADE;
 CREATE OR REPLACE VIEW vw_favorite_trips AS
 SELECT
     t.trip_id,
@@ -60,6 +61,7 @@ GROUP BY
   usuario, sumando el gasto total de cada uno. Une user_travel_history
   con las tablas maestras de viajes y destinos.
 */
+DROP VIEW IF EXISTS vw_travel_history CASCADE;
 CREATE OR REPLACE VIEW vw_travel_history AS
 SELECT
     uth.history_id,
@@ -100,6 +102,7 @@ GROUP BY
   destino en wishlist, calcula en línea el precio mínimo de vuelo
   disponible usando una subconsulta correlacionada en el SELECT.
 */
+DROP VIEW IF EXISTS vw_wishlist CASCADE;
 CREATE OR REPLACE VIEW vw_wishlist AS
 SELECT
     w.wishlist_id,
@@ -142,6 +145,7 @@ LEFT JOIN destinations d
   convertir segundos a horas con 2 decimales, y usa CASE para
   emitir el veredicto directamente.
 */
+DROP VIEW IF EXISTS vw_hipotesis_validacion CASCADE;
 CREATE OR REPLACE VIEW vw_hipotesis_validacion AS
 SELECT
     t.trip_id,
