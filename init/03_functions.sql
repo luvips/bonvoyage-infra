@@ -152,6 +152,8 @@ $$;
 --    CONFIRMED  → CANCELLED  (acción: CANCEL)
 --    CONFIRMED  → COMPLETED  (acción: COMPLETE)
 -- ------------------------------------------------------------
+DROP FUNCTION IF EXISTS fn_change_trip_status(UUID, UUID, VARCHAR);
+
 CREATE OR REPLACE FUNCTION fn_change_trip_status(
     p_trip_id UUID,
     p_user_id UUID,
