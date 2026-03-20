@@ -182,3 +182,19 @@ CREATE TABLE IF NOT EXISTS itinerary_items (
   created_at TIMESTAMP NOT NULL DEFAULT now(),
   updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- 5. Tablas de facturación y resumen
+CREATE TABLE IF NOT EXISTS tickets (
+  ticket_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trip_id UUID NOT NULL REFERENCES trips(trip_id),
+  user_id UUID NOT NULL REFERENCES users(user_id),
+  flights_cost NUMERIC DEFAULT 0,
+  places_cost NUMERIC DEFAULT 0,
+  total_cost NUMERIC DEFAULT 0,
+  budget NUMERIC,
+  budget_variance NUMERIC,
+  budget_status VARCHAR CHECK (budget_status IN ('WITHIN_BUDGET', 'OVER_BUDGET')),
+  currency VARCHAR DEFAULT 'USD',
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
