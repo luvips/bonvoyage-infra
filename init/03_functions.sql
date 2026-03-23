@@ -463,7 +463,7 @@ DECLARE
     v_total_places       INTEGER;
     v_total_flights      INTEGER;
     v_status             VARCHAR(20);
-    v_percentage         NUMERIC(5,2);
+    v_percentage         NUMERIC(12,2);
 BEGIN
     SELECT user_id, COALESCE(total_budget, 0)
     INTO   v_user_id, v_total_budget
