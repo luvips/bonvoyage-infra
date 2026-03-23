@@ -460,13 +460,17 @@ DECLARE
     v_user_id            UUID;
     v_total_budget       NUMERIC(12,2);
     v_accumulated_cost   NUMERIC(12,2);
+    v_places_cost        NUMERIC(12,2);
+    v_flights_cost       NUMERIC(12,2);
     v_total_places       INTEGER;
     v_total_flights      INTEGER;
+    v_currency           VARCHAR(10);
     v_status             VARCHAR(20);
     v_percentage         NUMERIC(12,2);
+    v_legacy_set_clause  TEXT := '';
 BEGIN
-    SELECT user_id, COALESCE(total_budget, 0)
-    INTO   v_user_id, v_total_budget
+    SELECT user_id, COALESCE(total_budget, 0), COALESCE(currency, 'USD')
+    INTO   v_user_id, v_total_budget, v_currency
     FROM   trips
     WHERE  trip_id = p_trip_id;
 
@@ -476,10 +480,14 @@ BEGIN
 
     SELECT
         COALESCE(SUM(ii.estimated_cost), 0),
+        COALESCE(SUM(ii.estimated_cost) FILTER (WHERE ii.item_type = 'PLACE'), 0),
+        COALESCE(SUM(ii.estimated_cost) FILTER (WHERE ii.item_type = 'FLIGHT'), 0),
         COUNT(*) FILTER (WHERE ii.item_type = 'PLACE'),
         COUNT(*) FILTER (WHERE ii.item_type = 'FLIGHT')
     INTO
         v_accumulated_cost,
+        v_places_cost,
+        v_flights_cost,
         v_total_places,
         v_total_flights
     FROM itinerary_items ii
@@ -530,6 +538,68 @@ BEGIN
             v_status,
             NOW()
         );
+    END IF;
+
+    -- Compatibilidad con esquemas legacy: si existen columnas antiguas,
+    -- se sincronizan con los valores actuales para evitar ceros en API.
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
+          AND column_name = 'flights_cost'
+    ) THEN
+        v_legacy_set_clause := v_legacy_set_clause || format(
+            'flights_cost = %L::numeric, ',
+            COALESCE(v_flights_cost, 0)
+        );
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
+          AND column_name = 'places_cost'
+    ) THEN
+        v_legacy_set_clause := v_legacy_set_clause || format(
+            'places_cost = %L::numeric, ',
+            COALESCE(v_places_cost, 0)
+        );
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
+          AND column_name = 'budget_variance'
+    ) THEN
+        v_legacy_set_clause := v_legacy_set_clause || format(
+            'budget_variance = %L::numeric, ',
+            COALESCE(v_total_budget, 0) - COALESCE(v_accumulated_cost, 0)
+        );
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
+          AND column_name = 'currency'
+    ) THEN
+        v_legacy_set_clause := v_legacy_set_clause || format(
+            'currency = %L, ',
+            COALESCE(v_currency, 'USD')
+        );
+    END IF;
+
+    IF v_legacy_set_clause <> '' THEN
+        EXECUTE format(
+            'UPDATE tickets SET %s updated_at = NOW() WHERE trip_id = $1',
+            v_legacy_set_clause
+        )
+        USING p_trip_id;
     END IF;
 END;
 $$;

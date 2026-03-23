@@ -170,6 +170,21 @@ EXCEPTION
 END;
 $$;
 
+-- Recalcula tickets al final de la migración para poblar costos y conteos
+-- en datos históricos sin depender de un paso manual adicional.
+DO $$
+DECLARE
+    v_trip_id UUID;
+BEGIN
+    FOR v_trip_id IN
+        SELECT t.trip_id
+        FROM tickets t
+    LOOP
+        PERFORM fn_recalculate_ticket(v_trip_id);
+    END LOOP;
+END;
+$$;
+
 -- Refuerza defaults y restricciones numéricas para entornos ya existentes.
 ALTER TABLE tickets
     ALTER COLUMN total_budget SET DEFAULT 0,
