@@ -484,34 +484,45 @@ BEGIN
     WHERE id_.trip_id = p_trip_id
       AND ii.status  <> 'CANCELLED';
 
-    IF v_presupuesto = 0 THEN
-        v_estado := 'WITHIN_BUDGET';
+    IF v_presupuesto <= 0 THEN
+        v_estado := 'SIN_DATOS';
     ELSE
         v_porcentaje := (v_costo_acumulado / v_presupuesto) * 100;
         v_estado := CASE
-            WHEN v_porcentaje > 100 THEN 'OVER_BUDGET'
-            ELSE                        'WITHIN_BUDGET'
+            WHEN v_porcentaje > 100 THEN 'EXCEDIDO'
+            WHEN v_porcentaje > 80  THEN 'ADVERTENCIA'
+            ELSE                        'EN_RANGO'
         END;
     END IF;
 
-    IF EXISTS (SELECT 1 FROM tickets WHERE trip_id = p_trip_id) THEN
-        UPDATE tickets SET
-            budget        = v_presupuesto,
-            total_cost    = v_costo_acumulado,
-            budget_status = v_estado,
-            updated_at    = NOW()
-        WHERE trip_id = p_trip_id;
-    ELSE
-        INSERT INTO tickets (
-            trip_id, user_id,
-            budget, total_cost,
-            budget_status, updated_at
-        )
-        VALUES (
-            p_trip_id, v_user_id,
-            v_presupuesto, v_costo_acumulado,
-            v_estado, NOW()
-        );
-    END IF;
+    INSERT INTO tickets (
+        trip_id,
+        user_id,
+        presupuesto_total,
+        costo_acumulado,
+        total_lugares,
+        total_vuelos,
+        estado_presupuesto,
+        updated_at
+    )
+    VALUES (
+        p_trip_id,
+        v_user_id,
+        COALESCE(v_presupuesto, 0),
+        COALESCE(v_costo_acumulado, 0),
+        COALESCE(v_total_lugares, 0),
+        COALESCE(v_total_vuelos, 0),
+        v_estado,
+        NOW()
+    )
+    ON CONFLICT (trip_id)
+    DO UPDATE SET
+        user_id            = EXCLUDED.user_id,
+        presupuesto_total  = EXCLUDED.presupuesto_total,
+        costo_acumulado    = EXCLUDED.costo_acumulado,
+        total_lugares      = EXCLUDED.total_lugares,
+        total_vuelos       = EXCLUDED.total_vuelos,
+        estado_presupuesto = EXCLUDED.estado_presupuesto,
+        updated_at         = NOW();
 END;
 $$;
