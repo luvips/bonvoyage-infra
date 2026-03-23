@@ -4,7 +4,7 @@
 --  PostgreSQL 16 
 --
 --  Orden de ejecución: después de 04_functions.sql
---  Depende de: fn_recalcular_ticket (04_functions.sql)
+--  Depende de: fn_recalculate_ticket (03_functions.sql)
 --
 --  Triggers incluidos:
 --    a) trg_users_updated_at            — auditoría updated_at en users
@@ -120,9 +120,10 @@ FOR EACH ROW EXECUTE FUNCTION fn_trg_validar_fechas_viaje();
 --  Qué hace: Se dispara cuando alguien agrega un ítem (INSERT),
 --  lo elimina (DELETE) o modifica su costo o estado (UPDATE OF).
 --  Obtiene el trip_id navegando itinerary_items → itinerary_days
---  y llama a fn_recalcular_ticket para actualizar el ticket.
+--  y llama a fn_recalculate_ticket para actualizar el ticket.
 --  El UPDATE OF limita el disparo solo a cambios en las columnas
---  estimated_cost y status, evitando disparos innecesarios.
+--  estimated_cost, status, item_type y day_id, evitando disparos
+--  innecesarios y cubriendo movimientos de ítems entre días.
 --  Casos cubiertos:
 --    1 — alguien agrega un lugar o vuelo al itinerario
 --    2 — alguien elimina algo de su itinerario
@@ -133,14 +134,28 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_trip_id UUID;
+    v_new_trip_id UUID;
+    v_old_trip_id UUID;
 BEGIN
-    SELECT trip_id INTO v_trip_id
-    FROM   itinerary_days
-    WHERE  day_id = CASE WHEN TG_OP = 'DELETE' THEN OLD.day_id ELSE NEW.day_id END;
+    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+        SELECT trip_id INTO v_new_trip_id
+        FROM itinerary_days
+        WHERE day_id = NEW.day_id;
+    END IF;
 
-    IF v_trip_id IS NOT NULL THEN
-        PERFORM fn_recalcular_ticket(v_trip_id);
+    IF TG_OP IN ('DELETE', 'UPDATE') THEN
+        SELECT trip_id INTO v_old_trip_id
+        FROM itinerary_days
+        WHERE day_id = OLD.day_id;
+    END IF;
+
+    IF v_new_trip_id IS NOT NULL THEN
+        PERFORM fn_recalculate_ticket(v_new_trip_id);
+    END IF;
+
+    IF v_old_trip_id IS NOT NULL
+       AND (v_new_trip_id IS NULL OR v_old_trip_id <> v_new_trip_id) THEN
+        PERFORM fn_recalculate_ticket(v_old_trip_id);
     END IF;
 
     IF TG_OP = 'DELETE' THEN
@@ -153,7 +168,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_ticket_por_items ON itinerary_items;
 CREATE TRIGGER trg_ticket_por_items
-AFTER INSERT OR DELETE OR UPDATE OF estimated_cost, status
+AFTER INSERT OR DELETE OR UPDATE OF estimated_cost, status, item_type, day_id
 ON itinerary_items
 FOR EACH ROW EXECUTE FUNCTION fn_trg_ticket_por_items();
 
@@ -165,7 +180,7 @@ FOR EACH ROW EXECUTE FUNCTION fn_trg_ticket_por_items();
 --  Qué hace: Se dispara cuando alguien ajusta total_budget en
 --  trips desde la pantalla de detalle del viaje en el frontend.
 --  Recalcula el estado del ticket con el nuevo presupuesto y
---  determina si el viaje pasa a EN_RANGO, ADVERTENCIA o EXCEDIDO.
+--  determina si el viaje pasa a WITHIN_BUDGET, WARNING u OVER_BUDGET.
 --  El UPDATE OF limita el disparo a cambios solo en total_budget,
 --  sin dispararse por cambios de nombre, status u otros campos.
 --  Caso cubierto:
@@ -176,7 +191,7 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    PERFORM fn_recalcular_ticket(NEW.trip_id);
+    PERFORM fn_recalculate_ticket(NEW.trip_id);
     RETURN NEW;
 END;
 $$;
