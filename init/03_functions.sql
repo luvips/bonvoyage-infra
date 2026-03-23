@@ -437,33 +437,36 @@ $$;
 
 
 -- ------------------------------------------------------------
---  fn_recalcular_ticket
+--  fn_recalculate_ticket
 --  Tipo: Automatización de tickets — retorna VOID
 --  Llamada exclusivamente por los triggers de tickets.
 --  Suma costos y cuenta ítems activos del itinerario, obtiene
 --  el presupuesto del viaje, calcula el estado del balance y
 --  hace UPSERT en tickets (crea si no existe, actualiza si sí).
 --  Estados posibles del presupuesto:
---    SIN_DATOS   — presupuesto no definido (total_budget = 0)
---    EN_RANGO    — costo acumulado <= 80% del presupuesto
---    ADVERTENCIA — costo acumulado entre 80% y 100%
---    EXCEDIDO    — costo acumulado > presupuesto
+--    WITHOUT_DATA — presupuesto no definido (total_budget = 0)
+--    WITHIN_BUDGET — costo acumulado <= 80% del presupuesto
+--    WARNING — costo acumulado entre 80% y 100%
+--    OVER_BUDGET — costo acumulado > presupuesto
+--  NOTA: Equipo backend debe asegurar que esta función actualice
+--        total_places, total_flights, y total_items cuando se 
+--        insertan, actualizan o eliminan items del itinerario.
 -- ------------------------------------------------------------
-CREATE OR REPLACE FUNCTION fn_recalcular_ticket(p_trip_id UUID)
+CREATE OR REPLACE FUNCTION fn_recalculate_ticket(p_trip_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_user_id         UUID;
-    v_presupuesto     NUMERIC(12,2);
-    v_costo_acumulado NUMERIC(12,2);
-    v_total_lugares   INTEGER;
-    v_total_vuelos    INTEGER;
-    v_estado          VARCHAR(20);
-    v_porcentaje      NUMERIC(5,2);
+    v_user_id            UUID;
+    v_total_budget       NUMERIC(12,2);
+    v_accumulated_cost   NUMERIC(12,2);
+    v_total_places       INTEGER;
+    v_total_flights      INTEGER;
+    v_status             VARCHAR(20);
+    v_percentage         NUMERIC(5,2);
 BEGIN
     SELECT user_id, COALESCE(total_budget, 0)
-    INTO   v_user_id, v_presupuesto
+    INTO   v_user_id, v_total_budget
     FROM   trips
     WHERE  trip_id = p_trip_id;
 
@@ -476,33 +479,33 @@ BEGIN
         COUNT(*) FILTER (WHERE ii.item_type = 'PLACE'),
         COUNT(*) FILTER (WHERE ii.item_type = 'FLIGHT')
     INTO
-        v_costo_acumulado,
-        v_total_lugares,
-        v_total_vuelos
+        v_accumulated_cost,
+        v_total_places,
+        v_total_flights
     FROM itinerary_items ii
     JOIN itinerary_days  id_ ON id_.day_id = ii.day_id
     WHERE id_.trip_id = p_trip_id
       AND ii.status  <> 'CANCELLED';
 
-    IF v_presupuesto <= 0 THEN
-        v_estado := 'SIN_DATOS';
+    IF v_total_budget <= 0 THEN
+        v_status := 'WITHOUT_DATA';
     ELSE
-        v_porcentaje := (v_costo_acumulado / v_presupuesto) * 100;
-        v_estado := CASE
-            WHEN v_porcentaje > 100 THEN 'EXCEDIDO'
-            WHEN v_porcentaje > 80  THEN 'ADVERTENCIA'
-            ELSE                        'EN_RANGO'
+        v_percentage := (v_accumulated_cost / v_total_budget) * 100;
+        v_status := CASE
+            WHEN v_percentage > 100 THEN 'OVER_BUDGET'
+            WHEN v_percentage > 80  THEN 'WARNING'
+            ELSE                        'WITHIN_BUDGET'
         END;
     END IF;
 
     UPDATE tickets
     SET
         user_id            = v_user_id,
-        presupuesto_total  = COALESCE(v_presupuesto, 0),
-        costo_acumulado    = COALESCE(v_costo_acumulado, 0),
-        total_lugares      = COALESCE(v_total_lugares, 0),
-        total_vuelos       = COALESCE(v_total_vuelos, 0),
-        estado_presupuesto = v_estado,
+        total_budget       = COALESCE(v_total_budget, 0),
+        accumulated_cost   = COALESCE(v_accumulated_cost, 0),
+        total_places       = COALESCE(v_total_places, 0),
+        total_flights      = COALESCE(v_total_flights, 0),
+        budget_status      = v_status,
         updated_at         = NOW()
     WHERE trip_id = p_trip_id;
 
@@ -510,21 +513,21 @@ BEGIN
         INSERT INTO tickets (
             trip_id,
             user_id,
-            presupuesto_total,
-            costo_acumulado,
-            total_lugares,
-            total_vuelos,
-            estado_presupuesto,
+            total_budget,
+            accumulated_cost,
+            total_places,
+            total_flights,
+            budget_status,
             updated_at
         )
         VALUES (
             p_trip_id,
             v_user_id,
-            COALESCE(v_presupuesto, 0),
-            COALESCE(v_costo_acumulado, 0),
-            COALESCE(v_total_lugares, 0),
-            COALESCE(v_total_vuelos, 0),
-            v_estado,
+            COALESCE(v_total_budget, 0),
+            COALESCE(v_accumulated_cost, 0),
+            COALESCE(v_total_places, 0),
+            COALESCE(v_total_flights, 0),
+            v_status,
             NOW()
         );
     END IF;

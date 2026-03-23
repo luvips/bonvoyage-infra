@@ -87,22 +87,11 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = 'tickets'
-          AND column_name = 'estado_presupuesto'
-    ) THEN
-        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
-                 ON tickets(estado_presupuesto)
-                 WHERE estado_presupuesto IN (''ADVERTENCIA'', ''EXCEDIDO'')';
-
-    ELSIF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'tickets'
           AND column_name = 'budget_status'
     ) THEN
-        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_budget_alert
                  ON tickets(budget_status)
-                 WHERE budget_status IN (''OVER_BUDGET'')';
+                 WHERE budget_status IN (''WARNING'', ''OVER_BUDGET'')';
     END IF;
 END;
 $$;

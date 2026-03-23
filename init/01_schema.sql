@@ -268,24 +268,24 @@ CREATE TABLE IF NOT EXISTS tickets (
                             REFERENCES users(user_id) ON DELETE CASCADE,
 
     -- Resumen financiero calculado automáticamente por triggers
-    presupuesto_total   NUMERIC(12,2)  NOT NULL DEFAULT 0,
-    costo_acumulado     NUMERIC(12,2)  NOT NULL DEFAULT 0,
-    balance_disponible  NUMERIC(12,2)  GENERATED ALWAYS AS
-                            (presupuesto_total - costo_acumulado) STORED,
+    total_budget        NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    accumulated_cost    NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    available_balance   NUMERIC(12,2)  GENERATED ALWAYS AS
+                            (total_budget - accumulated_cost) STORED,
 
     -- Contadores de ítems activos (no cancelados)
-    total_lugares       INTEGER        NOT NULL DEFAULT 0,
-    total_vuelos        INTEGER        NOT NULL DEFAULT 0,
+    total_places        INTEGER        NOT NULL DEFAULT 0,
+    total_flights       INTEGER        NOT NULL DEFAULT 0,
     total_items         INTEGER        GENERATED ALWAYS AS
-                            (total_lugares + total_vuelos) STORED,
+                            (total_places + total_flights) STORED,
 
     -- Estado derivado del porcentaje de uso del presupuesto
-    estado_presupuesto  VARCHAR(20)    NOT NULL DEFAULT 'SIN_DATOS'
-                            CHECK (estado_presupuesto IN (
-                                'SIN_DATOS',    -- sin presupuesto definido aún
-                                'EN_RANGO',     -- costo <= 80% del presupuesto
-                                'ADVERTENCIA',  -- costo entre 80% y 100%
-                                'EXCEDIDO'      -- costo > presupuesto
+    budget_status       VARCHAR(20)    NOT NULL DEFAULT 'WITHOUT_DATA'
+                            CHECK (budget_status IN (
+                                'WITHOUT_DATA',  -- sin presupuesto definido aún
+                                'WITHIN_BUDGET', -- costo <= 80% del presupuesto
+                                'WARNING',       -- costo entre 80% y 100%
+                                'OVER_BUDGET'    -- costo > presupuesto
                             )),
 
     -- Auditoría

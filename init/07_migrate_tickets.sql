@@ -11,89 +11,128 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'budget'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'presupuesto_total'
     )
     AND NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'presupuesto_total'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_budget'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets RENAME COLUMN budget TO presupuesto_total';
+        EXECUTE 'ALTER TABLE tickets RENAME COLUMN presupuesto_total TO total_budget';
     END IF;
 
     IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_cost'
-    )
-    AND NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'costo_acumulado'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'accumulated_cost'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets RENAME COLUMN total_cost TO costo_acumulado';
+        EXECUTE 'ALTER TABLE tickets RENAME COLUMN costo_acumulado TO accumulated_cost';
     END IF;
 
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'budget_status'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'estado_presupuesto'
     )
     AND NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'estado_presupuesto'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'budget_status'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets RENAME COLUMN budget_status TO estado_presupuesto';
+        EXECUTE 'ALTER TABLE tickets RENAME COLUMN estado_presupuesto TO budget_status';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_lugares'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_places'
+    ) THEN
+        EXECUTE 'ALTER TABLE tickets RENAME COLUMN total_lugares TO total_places';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_vuelos'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_flights'
+    ) THEN
+        EXECUTE 'ALTER TABLE tickets RENAME COLUMN total_vuelos TO total_flights';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'balance_disponible'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'available_balance'
+    ) THEN
+        EXECUTE 'ALTER TABLE tickets RENAME COLUMN balance_disponible TO available_balance';
     END IF;
 
     -- Agrega columnas faltantes del esquema actual.
     IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'presupuesto_total'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_budget'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN presupuesto_total NUMERIC(12,2)';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_budget NUMERIC(12,2)';
     END IF;
 
     IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'costo_acumulado'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'accumulated_cost'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN costo_acumulado NUMERIC(12,2)';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN accumulated_cost NUMERIC(12,2)';
     END IF;
 
     IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_lugares'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_places'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_lugares INTEGER';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_places INTEGER';
     END IF;
 
     IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_vuelos'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_flights'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_vuelos INTEGER';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_flights INTEGER';
     END IF;
 
     IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'estado_presupuesto'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'budget_status'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN estado_presupuesto VARCHAR(20)';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN budget_status VARCHAR(20)';
     END IF;
 
     IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'balance_disponible'
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'available_balance'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN balance_disponible NUMERIC(12,2) GENERATED ALWAYS AS (presupuesto_total - costo_acumulado) STORED';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN available_balance NUMERIC(12,2) GENERATED ALWAYS AS (total_budget - accumulated_cost) STORED';
     END IF;
 
     IF NOT EXISTS (
@@ -101,7 +140,7 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'total_items'
     ) THEN
-        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_items INTEGER GENERATED ALWAYS AS (total_lugares + total_vuelos) STORED';
+        EXECUTE 'ALTER TABLE tickets ADD COLUMN total_items INTEGER GENERATED ALWAYS AS (total_places + total_flights) STORED';
     END IF;
 END;
 $$;
@@ -116,14 +155,14 @@ BEGIN
         FROM pg_constraint c
         WHERE c.conrelid = 'tickets'::regclass
           AND c.contype = 'c'
-          AND pg_get_constraintdef(c.oid) ILIKE '%estado_presupuesto%'
+          AND pg_get_constraintdef(c.oid) ILIKE '%budget_status%'
     LOOP
         EXECUTE format('ALTER TABLE tickets DROP CONSTRAINT %I', v_constraint.conname);
     END LOOP;
 
     ALTER TABLE tickets
-        ADD CONSTRAINT chk_tickets_estado_presupuesto
-        CHECK (estado_presupuesto IN ('SIN_DATOS', 'EN_RANGO', 'ADVERTENCIA', 'EXCEDIDO'))
+        ADD CONSTRAINT chk_tickets_budget_status
+        CHECK (budget_status IN ('WITHOUT_DATA', 'WITHIN_BUDGET', 'WARNING', 'OVER_BUDGET'))
         NOT VALID;
 EXCEPTION
     WHEN duplicate_object THEN
@@ -133,42 +172,44 @@ $$;
 
 -- Refuerza defaults y restricciones numéricas para entornos ya existentes.
 ALTER TABLE tickets
-    ALTER COLUMN presupuesto_total SET DEFAULT 0,
-    ALTER COLUMN costo_acumulado SET DEFAULT 0,
-    ALTER COLUMN total_lugares SET DEFAULT 0,
-    ALTER COLUMN total_vuelos SET DEFAULT 0;
+    ALTER COLUMN total_budget SET DEFAULT 0,
+    ALTER COLUMN accumulated_cost SET DEFAULT 0,
+    ALTER COLUMN total_places SET DEFAULT 0,
+    ALTER COLUMN total_flights SET DEFAULT 0;
 
 -- Sanitiza datos legacy que pudieron quedar en NULL.
 UPDATE tickets
 SET
-    presupuesto_total  = COALESCE(presupuesto_total, 0),
-    costo_acumulado    = COALESCE(costo_acumulado, 0),
-    total_lugares      = COALESCE(total_lugares, 0),
-    total_vuelos       = COALESCE(total_vuelos, 0),
-    estado_presupuesto = CASE
-        WHEN estado_presupuesto = 'WITHIN_BUDGET' THEN 'EN_RANGO'
-        WHEN estado_presupuesto = 'OVER_BUDGET'   THEN 'EXCEDIDO'
-        WHEN estado_presupuesto IN ('SIN_DATOS', 'EN_RANGO', 'ADVERTENCIA', 'EXCEDIDO')
-            THEN estado_presupuesto
-        ELSE 'SIN_DATOS'
+    total_budget       = COALESCE(total_budget, 0),
+    accumulated_cost   = COALESCE(accumulated_cost, 0),
+    total_places       = COALESCE(total_places, 0),
+    total_flights      = COALESCE(total_flights, 0),
+    budget_status      = CASE
+        WHEN budget_status = 'EN_RANGO' THEN 'WITHIN_BUDGET'
+        WHEN budget_status = 'EXCEDIDO'   THEN 'OVER_BUDGET'
+        WHEN budget_status = 'ADVERTENCIA' THEN 'WARNING'
+        WHEN budget_status = 'SIN_DATOS' THEN 'WITHOUT_DATA'
+        WHEN budget_status IN ('WITHOUT_DATA', 'WITHIN_BUDGET', 'WARNING', 'OVER_BUDGET')
+            THEN budget_status
+        ELSE 'WITHOUT_DATA'
     END;
 
 ALTER TABLE tickets
-    ALTER COLUMN presupuesto_total SET NOT NULL,
-    ALTER COLUMN costo_acumulado SET NOT NULL,
-    ALTER COLUMN total_lugares SET NOT NULL,
-    ALTER COLUMN total_vuelos SET NOT NULL,
-    ALTER COLUMN estado_presupuesto SET NOT NULL;
+    ALTER COLUMN total_budget SET NOT NULL,
+    ALTER COLUMN accumulated_cost SET NOT NULL,
+    ALTER COLUMN total_places SET NOT NULL,
+    ALTER COLUMN total_flights SET NOT NULL,
+    ALTER COLUMN budget_status SET NOT NULL;
 
 -- Valida el check solo después de normalizar datos legacy.
 ALTER TABLE tickets
-    VALIDATE CONSTRAINT chk_tickets_estado_presupuesto;
+    VALIDATE CONSTRAINT chk_tickets_budget_status;
 
 -- Reemplaza índice legacy para alertas en estado actual.
 DROP INDEX IF EXISTS idx_tickets_estado_alerta;
-CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
-    ON tickets(estado_presupuesto)
-    WHERE estado_presupuesto IN ('ADVERTENCIA', 'EXCEDIDO');
+CREATE INDEX IF NOT EXISTS idx_tickets_budget_alert
+    ON tickets(budget_status)
+    WHERE budget_status IN ('WARNING', 'OVER_BUDGET');
 
 -- Asegura unicidad por viaje para habilitar ON CONFLICT(trip_id).
 -- 1) elimina filas huérfanas sin trip_id
@@ -207,11 +248,11 @@ BEGIN
         INSERT INTO tickets (
             trip_id,
             user_id,
-            presupuesto_total,
-            costo_acumulado,
-            total_lugares,
-            total_vuelos,
-            estado_presupuesto,
+            total_budget,
+            accumulated_cost,
+            total_places,
+            total_flights,
+            budget_status,
             updated_at
         )
         VALUES (
@@ -222,19 +263,19 @@ BEGIN
             0,
             0,
             CASE
-                WHEN v_trip.total_budget <= 0 THEN 'SIN_DATOS'
-                ELSE 'EN_RANGO'
+                WHEN v_trip.total_budget <= 0 THEN 'WITHOUT_DATA'
+                ELSE 'WITHIN_BUDGET'
             END,
             NOW()
         )
         ON CONFLICT (trip_id)
         DO UPDATE SET
             user_id            = EXCLUDED.user_id,
-            presupuesto_total  = COALESCE(tickets.presupuesto_total, EXCLUDED.presupuesto_total),
-            costo_acumulado    = COALESCE(tickets.costo_acumulado, EXCLUDED.costo_acumulado),
-            total_lugares      = COALESCE(tickets.total_lugares, EXCLUDED.total_lugares),
-            total_vuelos       = COALESCE(tickets.total_vuelos, EXCLUDED.total_vuelos),
-            estado_presupuesto = COALESCE(tickets.estado_presupuesto, EXCLUDED.estado_presupuesto),
+            total_budget       = COALESCE(tickets.total_budget, EXCLUDED.total_budget),
+            accumulated_cost   = COALESCE(tickets.accumulated_cost, EXCLUDED.accumulated_cost),
+            total_places       = COALESCE(tickets.total_places, EXCLUDED.total_places),
+            total_flights      = COALESCE(tickets.total_flights, EXCLUDED.total_flights),
+            budget_status      = COALESCE(tickets.budget_status, EXCLUDED.budget_status),
             updated_at         = NOW();
     END LOOP;
 END;
