@@ -123,7 +123,8 @@ BEGIN
 
     ALTER TABLE tickets
         ADD CONSTRAINT chk_tickets_estado_presupuesto
-        CHECK (estado_presupuesto IN ('SIN_DATOS', 'EN_RANGO', 'ADVERTENCIA', 'EXCEDIDO'));
+        CHECK (estado_presupuesto IN ('SIN_DATOS', 'EN_RANGO', 'ADVERTENCIA', 'EXCEDIDO'))
+        NOT VALID;
 EXCEPTION
     WHEN duplicate_object THEN
         NULL;
@@ -147,7 +148,9 @@ SET
     estado_presupuesto = CASE
         WHEN estado_presupuesto = 'WITHIN_BUDGET' THEN 'EN_RANGO'
         WHEN estado_presupuesto = 'OVER_BUDGET'   THEN 'EXCEDIDO'
-        ELSE COALESCE(estado_presupuesto, 'SIN_DATOS')
+        WHEN estado_presupuesto IN ('SIN_DATOS', 'EN_RANGO', 'ADVERTENCIA', 'EXCEDIDO')
+            THEN estado_presupuesto
+        ELSE 'SIN_DATOS'
     END;
 
 ALTER TABLE tickets
@@ -156,6 +159,10 @@ ALTER TABLE tickets
     ALTER COLUMN total_lugares SET NOT NULL,
     ALTER COLUMN total_vuelos SET NOT NULL,
     ALTER COLUMN estado_presupuesto SET NOT NULL;
+
+-- Valida el check solo después de normalizar datos legacy.
+ALTER TABLE tickets
+    VALIDATE CONSTRAINT chk_tickets_estado_presupuesto;
 
 -- Reemplaza índice legacy para alertas en estado actual.
 DROP INDEX IF EXISTS idx_tickets_estado_alerta;
