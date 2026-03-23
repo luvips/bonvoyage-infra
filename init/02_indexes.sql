@@ -80,9 +80,32 @@ CREATE INDEX IF NOT EXISTS idx_tickets_user
     ON tickets(user_id);
 
 -- Índice parcial: tickets con advertencia o excedidos (alertas del dashboard)
-CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
-    ON tickets(estado_presupuesto)
-    WHERE estado_presupuesto IN ('ADVERTENCIA', 'EXCEDIDO');
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
+          AND column_name = 'estado_presupuesto'
+    ) THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
+                 ON tickets(estado_presupuesto)
+                 WHERE estado_presupuesto IN (''ADVERTENCIA'', ''EXCEDIDO'')';
+
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
+          AND column_name = 'budget_status'
+    ) THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
+                 ON tickets(budget_status)
+                 WHERE budget_status IN (''OVER_BUDGET'')';
+    END IF;
+END;
+$$;
 
 -- NOTIFICACIONES
 CREATE INDEX IF NOT EXISTS idx_notifications_user
