@@ -81,8 +81,8 @@ CREATE INDEX IF NOT EXISTS idx_tickets_user
 
 -- Índice parcial: tickets con advertencia o excedidos (alertas del dashboard)
 CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
-    ON tickets(budget_status)
-    WHERE budget_status IN ('OVER_BUDGET');
+    ON tickets(estado_presupuesto)
+    WHERE estado_presupuesto IN ('ADVERTENCIA', 'EXCEDIDO');
 
 -- NOTIFICACIONES
 CREATE INDEX IF NOT EXISTS idx_notifications_user
