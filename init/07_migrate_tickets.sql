@@ -170,6 +170,32 @@ CREATE INDEX IF NOT EXISTS idx_tickets_estado_alerta
     ON tickets(estado_presupuesto)
     WHERE estado_presupuesto IN ('ADVERTENCIA', 'EXCEDIDO');
 
+-- Asegura unicidad por viaje para habilitar ON CONFLICT(trip_id).
+-- 1) elimina filas huérfanas sin trip_id
+DELETE FROM tickets
+WHERE trip_id IS NULL;
+
+-- 2) deduplica por trip_id conservando el registro más reciente
+WITH ranked AS (
+    SELECT
+        ctid,
+        ROW_NUMBER() OVER (
+            PARTITION BY trip_id
+            ORDER BY updated_at DESC NULLS LAST,
+                     created_at DESC NULLS LAST,
+                     ticket_id DESC
+        ) AS rn
+    FROM tickets
+)
+DELETE FROM tickets t
+USING ranked r
+WHERE t.ctid = r.ctid
+  AND r.rn > 1;
+
+-- 3) crea índice único si aún no existe
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tickets_trip_id
+    ON tickets(trip_id);
+
 DO $$
 DECLARE
     v_trip RECORD;

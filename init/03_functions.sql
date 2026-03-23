@@ -495,34 +495,38 @@ BEGIN
         END;
     END IF;
 
-    INSERT INTO tickets (
-        trip_id,
-        user_id,
-        presupuesto_total,
-        costo_acumulado,
-        total_lugares,
-        total_vuelos,
-        estado_presupuesto,
-        updated_at
-    )
-    VALUES (
-        p_trip_id,
-        v_user_id,
-        COALESCE(v_presupuesto, 0),
-        COALESCE(v_costo_acumulado, 0),
-        COALESCE(v_total_lugares, 0),
-        COALESCE(v_total_vuelos, 0),
-        v_estado,
-        NOW()
-    )
-    ON CONFLICT (trip_id)
-    DO UPDATE SET
-        user_id            = EXCLUDED.user_id,
-        presupuesto_total  = EXCLUDED.presupuesto_total,
-        costo_acumulado    = EXCLUDED.costo_acumulado,
-        total_lugares      = EXCLUDED.total_lugares,
-        total_vuelos       = EXCLUDED.total_vuelos,
-        estado_presupuesto = EXCLUDED.estado_presupuesto,
-        updated_at         = NOW();
+    UPDATE tickets
+    SET
+        user_id            = v_user_id,
+        presupuesto_total  = COALESCE(v_presupuesto, 0),
+        costo_acumulado    = COALESCE(v_costo_acumulado, 0),
+        total_lugares      = COALESCE(v_total_lugares, 0),
+        total_vuelos       = COALESCE(v_total_vuelos, 0),
+        estado_presupuesto = v_estado,
+        updated_at         = NOW()
+    WHERE trip_id = p_trip_id;
+
+    IF NOT FOUND THEN
+        INSERT INTO tickets (
+            trip_id,
+            user_id,
+            presupuesto_total,
+            costo_acumulado,
+            total_lugares,
+            total_vuelos,
+            estado_presupuesto,
+            updated_at
+        )
+        VALUES (
+            p_trip_id,
+            v_user_id,
+            COALESCE(v_presupuesto, 0),
+            COALESCE(v_costo_acumulado, 0),
+            COALESCE(v_total_lugares, 0),
+            COALESCE(v_total_vuelos, 0),
+            v_estado,
+            NOW()
+        );
+    END IF;
 END;
 $$;
