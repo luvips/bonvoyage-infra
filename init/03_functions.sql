@@ -586,6 +586,20 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = 'tickets'
+          AND column_name = 'available_balance'
+          AND is_generated = 'NEVER'
+    ) THEN
+        v_legacy_set_clause := v_legacy_set_clause || format(
+            'available_balance = %L::numeric, ',
+            COALESCE(v_total_budget, 0) - COALESCE(v_accumulated_cost, 0)
+        );
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tickets'
           AND column_name = 'currency'
     ) THEN
         v_legacy_set_clause := v_legacy_set_clause || format(
